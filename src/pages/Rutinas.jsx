@@ -5,7 +5,6 @@ import {
     PlusIcon,
     PencilSquareIcon,
     TrashIcon,
-    PhotoIcon,
     XMarkIcon,
 } from '@heroicons/react/24/outline';
 
@@ -20,15 +19,8 @@ const Rutinas = () => {
         duracion: '',
         nivel: 'principiante',
         descripcion: '',
-        imagen: null,
     });
-    const [previewImage, setPreviewImage] = useState(null);
     const [error, setError] = useState('');
-
-    // ✅ URL base para imágenes
-    const API_BASE_URL = import.meta.env.VITE_API_URL
-        ? import.meta.env.VITE_API_URL.replace('/api', '')
-        : 'http://localhost:8000';
 
     useEffect(() => {
         fetchRutinas();
@@ -44,11 +36,6 @@ const Rutinas = () => {
             const rutinasData = Array.isArray(response.data)
                 ? response.data
                 : response.data.results || [];
-
-            // ✅ Debug: Verificar imágenes
-            rutinasData.forEach(r => {
-                console.log(`Rutina: ${r.nombre}, Imagen: ${r.imagen}`);
-            });
 
             setRutinas(rutinasData);
         } catch (error) {
@@ -67,66 +54,33 @@ const Rutinas = () => {
         }));
     };
 
-    const handleImageChange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            setFormData(prev => ({
-                ...prev,
-                imagen: file
-            }));
-
-            // Crear preview
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setPreviewImage(reader.result);
-            };
-            reader.readAsDataURL(file);
-        }
-    };
-
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
 
         try {
-            const data = new FormData();
-            data.append('nombre', formData.nombre);
-            data.append('duracion', formData.duracion);
-            data.append('nivel', formData.nivel);
-            data.append('descripcion', formData.descripcion);
-
-            // ✅ IMPORTANTE: Solo agregar imagen si hay una nueva
-            if (formData.imagen && formData.imagen instanceof File) {
-                data.append('imagen', formData.imagen);
-                console.log('Agregando nueva imagen:', formData.imagen.name);
-            } else if (editingRutina && editingRutina.imagen) {
-                // Si no hay nueva imagen pero existe una anterior, NO la agregamos
-                // El backend mantendrá la imagen existente
-                console.log('Manteniendo imagen existente');
-            }
-
             if (editingRutina) {
                 console.log('Actualizando rutina ID:', editingRutina.id);
-                console.log('Data a enviar:', Object.fromEntries(data));
 
-                // ✅ ACTUALIZAR - Usar PUT con FormData
+                // ✅ ACTUALIZAR - Usar PUT con JSON
                 const response = await api.put(
                     `/rutinas/${editingRutina.id}/`,
-                    data,
                     {
-                        headers: {
-                            'Content-Type': 'multipart/form-data',
-                        },
+                        nombre: formData.nombre,
+                        duracion: formData.duracion,
+                        nivel: formData.nivel,
+                        descripcion: formData.descripcion,
                     }
                 );
 
                 console.log('Rutina actualizada:', response.data);
             } else {
-                // Crear nueva rutina
-                await api.post('/rutinas/', data, {
-                    headers: {
-                        'Content-Type': 'multipart/form-data',
-                    },
+                // ✅ CREAR - Usar POST con JSON
+                await api.post('/rutinas/', {
+                    nombre: formData.nombre,
+                    duracion: formData.duracion,
+                    nivel: formData.nivel,
+                    descripcion: formData.descripcion,
                 });
             }
 
@@ -158,18 +112,7 @@ const Rutinas = () => {
             duracion: rutina.duracion,
             nivel: rutina.nivel,
             descripcion: rutina.descripcion || '',
-            imagen: null,
         });
-
-        // ✅ CORREGIDO: Manejo seguro de URL de imagen
-        if (rutina.imagen) {
-            const imageUrl = rutina.imagen.startsWith('http')
-                ? rutina.imagen
-                : `${API_BASE_URL}${rutina.imagen}`;
-            setPreviewImage(imageUrl);
-        } else {
-            setPreviewImage(null);
-        }
 
         setShowModal(true);
     };
@@ -194,9 +137,7 @@ const Rutinas = () => {
             duracion: '',
             nivel: 'principiante',
             descripcion: '',
-            imagen: null,
         });
-        setPreviewImage(null);
         setError('');
     };
 
@@ -207,24 +148,6 @@ const Rutinas = () => {
             avanzado: 'bg-red-100 text-red-800',
         };
         return colors[nivel] || 'bg-gray-100 text-gray-800';
-    };
-
-    // ✅ Función para obtener URL de imagen
-    const getImageUrl = (imagenPath) => {
-        if (!imagenPath) return null;
-
-        // Si ya es URL completa, retornarla
-        if (imagenPath.startsWith('http')) {
-            return imagenPath;
-        }
-
-        // Si comienza con /media/, agregar el base URL
-        if (imagenPath.startsWith('/media/')) {
-            return `${API_BASE_URL}${imagenPath}`;
-        }
-
-        // Si no, asumir que es una ruta relativa
-        return `${API_BASE_URL}${imagenPath}`;
     };
 
     if (loading) {
@@ -256,7 +179,6 @@ const Rutinas = () => {
 
             {rutinas.length === 0 ? (
                 <div className="text-center py-12 bg-white rounded-xl shadow">
-                    <PhotoIcon className="w-24 h-24 text-gray-300 mx-auto mb-4" />
                     <p className="text-gray-500 text-lg">No hay rutinas registradas</p>
                     <button
                         onClick={() => setShowModal(true)}
@@ -268,46 +190,21 @@ const Rutinas = () => {
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {rutinas.map((rutina) => {
-                        const imageUrl = getImageUrl(rutina.imagen);
-
                         return (
                             <div
                                 key={rutina.id}
                                 className="bg-white rounded-xl shadow-lg overflow-hidden hover:shadow-xl transition"
                             >
-                                {/* ✅ CORREGIDO: Manejo de imagen con fallback */}
-                                <div className="w-full h-48 bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center relative overflow-hidden">
-                                    {imageUrl ? (
-                                        <>
-                                            <img
-                                                src={imageUrl}
-                                                alt={rutina.nombre}
-                                                className="w-full h-full object-cover"
-                                                onError={(e) => {
-                                                    console.error('Error cargando imagen:', imageUrl);
-                                                    e.target.style.display = 'none';
-                                                    const placeholder = e.target.parentElement.querySelector('.placeholder-img');
-                                                    if (placeholder) {
-                                                        placeholder.classList.remove('hidden');
-                                                        placeholder.classList.add('flex');
-                                                    }
-                                                }}
-                                            />
-                                            <div className="placeholder-img hidden absolute inset-0 items-center justify-center bg-gradient-to-br from-blue-400 to-purple-500">
-                                                <PhotoIcon className="w-16 h-16 text-white opacity-50" />
-                                            </div>
-                                        </>
-                                    ) : (
-                                        <div className="flex flex-col items-center justify-center">
-                                            <PhotoIcon className="w-16 h-16 text-white opacity-50" />
-                                            <p className="text-white text-sm mt-2 opacity-75">Sin imagen</p>
-                                        </div>
-                                    )}
+                                {/* ✅ HEADER CON COLOR SEGÚN NIVEL */}
+                                <div className={`w-full h-32 ${rutina.nivel === 'principiante' ? 'bg-gradient-to-br from-green-400 to-green-600' :
+                                        rutina.nivel === 'intermedio' ? 'bg-gradient-to-br from-yellow-400 to-yellow-600' :
+                                            'bg-gradient-to-br from-red-400 to-red-600'
+                                    } flex items-center justify-center`}>
+                                    <h3 className="text-2xl font-bold text-white">{rutina.nombre}</h3>
                                 </div>
 
                                 <div className="p-6">
                                     <div className="flex justify-between items-start mb-3">
-                                        <h3 className="text-xl font-bold text-gray-800">{rutina.nombre}</h3>
                                         <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getNivelColor(rutina.nivel)}`}>
                                             {rutina.nivel}
                                         </span>
@@ -432,47 +329,6 @@ const Rutinas = () => {
                                     rows="3"
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                                 />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Imagen
-                                </label>
-                                <div className="mt-1 flex items-center gap-4">
-                                    {previewImage && (
-                                        <div className="relative">
-                                            <img
-                                                src={previewImage}
-                                                alt="Preview"
-                                                className="w-32 h-32 object-cover rounded-lg"
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    setPreviewImage(null);
-                                                    setFormData(prev => ({ ...prev, imagen: null }));
-                                                }}
-                                                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
-                                            >
-                                                <XMarkIcon className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    )}
-                                    <label className="flex-1 cursor-pointer">
-                                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-500 transition">
-                                            <PhotoIcon className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-                                            <span className="text-sm text-gray-600">
-                                                {previewImage ? 'Cambiar imagen' : 'Seleccionar imagen'}
-                                            </span>
-                                        </div>
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            onChange={handleImageChange}
-                                            className="hidden"
-                                        />
-                                    </label>
-                                </div>
                             </div>
 
                             <div className="flex gap-4 pt-4">
